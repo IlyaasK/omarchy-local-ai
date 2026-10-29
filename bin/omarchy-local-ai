@@ -1774,6 +1774,8 @@ summary() {
             | [$rs[] | select(.completion > 8 and .ms > 0) | rate] as $dec
             | [$rs[] | select(.prompt > 64 and .ttft_ms > 0 and .ttft_ms < .ms) | .prompt / (.ttft_ms / 1000)] as $pre
             | [$rs[] | select(.ttft_ms < .ms)] as $tt
+            | [$rs[] | select((.prompt // 0) > 0 and ((.cached | type) == "number"))] as $ca
+            | [$rs[] | select((.completion // 0) > 0 and ((.reasoning | type) == "number"))] as $re
             | {lines: $n} + ($o | del(.lines)) + {requests: (($o.requests // 0) + ($rs | length)), total: (($o.total // 0) + ([$rs[].v] | add // 0)),
                 hours: (($o.hours // {}) | bump($rs | group_by(.t / 3600 | floor); .t / 3600 | floor; map(.v) | add)),
                 first: ([$o.first, ($rs | map(.t) | min)] | map(select(. != null)) | min),
@@ -1781,7 +1783,11 @@ summary() {
                 decode: {n: (($o.decode.n // 0) + ($dec | length)), sum: (($o.decode.sum // 0) + ($dec | add // 0))},
                 prefill: {n: (($o.prefill.n // 0) + ($pre | length)), sum: (($o.prefill.sum // 0) + ($pre | add // 0))},
                 ttftn: (($o.ttftn // 0) + ($tt | length)),
-                ttft: (($o.ttft // {}) | bump($tt | group_by(.ttft_ms / 50 | floor); .ttft_ms / 50 | floor; length))}' \
+                ttft: (($o.ttft // {}) | bump($tt | group_by(.ttft_ms / 50 | floor); .ttft_ms / 50 | floor; length)),
+                cached: {n: (($o.cached.n // 0) + ($ca | length)), sum: (($o.cached.sum // 0) + ([$ca[].cached] | add // 0)),
+                         prompt: (($o.cached.prompt // 0) + ([$ca[].prompt] | add // 0))},
+                reasoning: {n: (($o.reasoning.n // 0) + ($re | length)), sum: (($o.reasoning.sum // 0) + ([$re[].reasoning] | add // 0)),
+                            completion: (($o.reasoning.completion // 0) + ([$re[].completion] | add // 0))}}' \
           >"$s.$$" 2>/dev/null && mv -f "$s.$$" "$s"; then :
         else rm -f "$s.$$"; break; fi
         seen=$((seen + take))
@@ -1824,6 +1830,8 @@ session() {
     | (.ttftn // 0) as $tn
     | {tokens: ([$h[] | select(.t + 3600 > $s) | .v] | add // 0), week: ([$h[] | select(.t >= $d0) | .v] | add // 0),
        all: {since: ($from | strflocaltime("%b %-d")), last: $last, tokens: (.total // 0), decode: avg(.decode), prefill: avg(.prefill),
+         cached: (if ((.cached.prompt // 0) > 0) then .cached.sum / .cached.prompt else null end),
+         reasoning: (if ((.reasoning.completion // 0) > 0) then .reasoning.sum / .reasoning.completion else null end),
          ttft: (if $tn > 0 then [.ttft | to_entries[] | {b: (.key | tonumber), c: .value}] | sort_by(.b)
            | reduce .[] as $x ({s: 0, m: null}; (if .m == null and .s + $x.c > $tn / 2 then .m = $x.b * 50 + 25 else . end) | .s += $x.c) | .m
            else null end),

@@ -7,8 +7,11 @@ B=${BACKEND:-$ROOT/bin/omarchy-local-ai}
 FNS=$(mktemp); sed '/^paths "\$HOME"$/,$d' "$B" >"$FNS"
 T=$(mktemp -d); D=$T/usage/m; mkdir -p "$D"
 line() { printf '{"t":%d,"prompt":%d,"completion":10,"ms":500,"ttft_ms":50}\n' "$EPOCHSECONDS" "$1"; }
+linec() { printf '{"t":%d,"prompt":%d,"completion":10,"ms":500,"ttft_ms":50,"cached":%d,"reasoning":%d}\n' "$EPOCHSECONDS" "$1" "$2" "$3"; }
 req() { bash -c "set -euo pipefail; shopt -s nullglob; source $FNS >/dev/null 2>&1; summary '$D'" | jq -r '"\(.requests) \(.total)"'; }
+vals() { bash -c "set -euo pipefail; shopt -s nullglob; source $FNS >/dev/null 2>&1; summary '$D'" | jq -r '"\(.cached.n) \(.cached.sum) \(.cached.prompt) \(.reasoning.n) \(.reasoning.sum) \(.reasoning.completion)"'; }
 check() { local got; got=$(req); [[ $got == "$1" ]] && echo "ok - $2 ($got)" || { echo "not ok - $2: want $1, got $got"; exit 1; }; }
+checkv() { local got; got=$(vals); [[ $got == "$1" ]] && echo "ok - $2 ($got)" || { echo "not ok - $2: want $1, got $got"; exit 1; }; }
 line 100 >"$D/usage.jsonl"; line 200 >>"$D/usage.jsonl"; line 300 >>"$D/usage.jsonl"
 check "3 630" "three lines"
 check "3 630" "unchanged: read from the summary"
@@ -25,4 +28,13 @@ check "2 1520" "a line a second later"
 rm -f "$D/summary.json"
 line 1 | awk '{for(i=0;i<200005;i++)print}' >"$D/usage.jsonl"
 check "200005 2200055" "large logs cross the 100000-line boundary without SIGPIPE"
+rm -f "$D/summary.json"
+linec 1000 400 3 >"$D/usage.jsonl"; linec 2000 1000 5 >>"$D/usage.jsonl"
+checkv "2 1400 3000 2 8 20" "cache and reasoning totals over the rows that report them"
+checkv "2 1400 3000 2 8 20" "unchanged: the totals are read from the summary"
+line 100 >>"$D/usage.jsonl"
+checkv "2 1400 3000 2 8 20" "a row without the fields is not counted"
+rm -f "$D/summary.json"
+line 100 >"$D/usage.jsonl"
+checkv "0 0 0 0 0 0" "a log without the fields has no cache figures"
 rm -rf "$T" "$FNS"
