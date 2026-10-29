@@ -182,13 +182,13 @@ test('a model page: name, one line of state, one action (Open and Stop when it r
   assert.deepEqual(free[1].items.map(a=>[a.label,a.action]),[['Start ›','run|test|nvidia:0']]);
   assert.equal(free[0].note,'starts with a 0 GB download');
 });
-test('a running model shows cache and reasoning shares when the engine reported them', () => {
-  const withAll={...s,deployments:[{...s.deployments[0],session:{all:{cached:0.25,reasoning:0.4}}}]};
+test('a running model shows its cache share and average reasoning tokens when the engine reported them', () => {
+  const withAll={...s,deployments:[{...s.deployments[0],session:{all:{cached:0.25,reasoning:17}}}]};
   const cells=m.build(withAll,{view:'run',id:'test',details:true}).rows.find(r=>r.type==='grid').cells;
   assert(cells.some(c=>c.k==='from cache'&&c.v==='25%'),JSON.stringify(cells));
-  assert(cells.some(c=>c.k==='reasoning'&&c.v==='40%'),JSON.stringify(cells));
+  assert(cells.some(c=>c.k==='reasoning avg'&&c.v==='17'&&c.u==='tok'),JSON.stringify(cells));
   const plain=m.build(s,{view:'run',id:'test',details:true}).rows.find(r=>r.type==='grid').cells;
-  assert(!plain.some(c=>c.k==='from cache'||c.k==='reasoning'),JSON.stringify(plain));
+  assert(!plain.some(c=>c.k==='from cache'||c.k==='reasoning avg'),JSON.stringify(plain));
 });
 test('back and forward step through the views, as in a browser', () => {
   const qml=fs.readFileSync(process.argv[3],'utf8');

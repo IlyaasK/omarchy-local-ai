@@ -500,7 +500,7 @@ function page(s, ui, m) {
       { v: isNaN(Date.parse(run.startedAt)) ? "–" : dur((Date.now() - Date.parse(run.startedAt)) / 1000), u: "", k: "up" }]
     // only when the engine reported the counts: an older gateway or one whose engine sends none has no share
     if (all.cached != null) cells.push({ v: Math.round(all.cached * 100) + "%", u: "", k: "from cache" })
-    if (all.reasoning != null) cells.push({ v: Math.round(all.reasoning * 100) + "%", u: "", k: "reasoning" })
+    if (all.reasoning != null) cells.push({ v: String(all.reasoning), u: "tok", k: "reasoning avg" })
     v.rows.push({ type: "grid", cells: cells })
   }
   needsTable(v.rows, m)
